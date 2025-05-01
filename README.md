@@ -44,8 +44,8 @@ A powerful sentiment analysis tool that explores public opinion about streaming 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/asadadnan11/cinema-sentiment-analysis.git
-cd cinema-sentiment-analysis
+git clone https://github.com/asadadnan11/streaming-sentiment-tracker.git
+cd streaming-sentiment-tracker
 ```
 
 2. Install dependencies:
@@ -166,7 +166,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 Asad Adnan - [@asadadnan_11](https://twitter.com/asadadnan_11)
 
-Project Link: [https://github.com/asadadnan11/cinema-sentiment-analysis](https://github.com/asadadnan11/cinema-sentiment-analysis)
+Project Link: [https://github.com/asadadnan11/streaming-sentiment-tracker](https://github.com/asadadnan11/streaming-sentiment-tracker)
 
 ---
 
