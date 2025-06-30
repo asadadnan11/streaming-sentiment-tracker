@@ -11,21 +11,21 @@ from datetime import datetime, timedelta
 import nltk
 import sys
 
-# Download required NLTK data
+# Download NLTK stuff - this took me forever to figure out
 nltk.download('vader_lexicon')
 nltk.download('stopwords')
 nltk.download('punkt')
 
-# Set visualization style
-sns.set_theme(style="whitegrid")  # Use seaborn's default theme
+# Make the plots look decent
+sns.set_theme(style="whitegrid")  # seaborn's default theme looks good
 plt.rcParams['figure.figsize'] = [12, 6]
 plt.rcParams['figure.dpi'] = 100
 
 def main():
     try:
-        # Initialize Reddit API client
+        # Set up Reddit API connection
         print("Initializing Reddit API client...")
-        reddit = praw.Reddit(
+        reddit_client = praw.Reddit(
             client_id='YOsFiClXBVfQGPNF8w2M6g',
             client_secret='7xm7tx0UkFWr-dUOGZM6j8bQBpP-Ow',
             user_agent='script:StreamingSentiment:v1.0',
@@ -33,10 +33,10 @@ def main():
             password='Eternity.9081'
         )
         
-        # Test the connection
+        # Test if the connection works
         print("Testing Reddit API connection...")
-        test_subreddit = reddit.subreddit('test')
-        print(f"Authenticated as: {reddit.user.me()}")
+        test_sub = reddit_client.subreddit('test')
+        print(f"Authenticated as: {reddit_client.user.me()}")
         print("Successfully connected to Reddit API!")
         
     except Exception as e:
@@ -48,113 +48,113 @@ def main():
         print(f"\nError details: {str(e)}")
         sys.exit(1)
 
-    # Initialize VADER sentiment analyzer
-    sia = SentimentIntensityAnalyzer()
+    # Set up VADER sentiment analyzer
+    sentiment_analyzer = SentimentIntensityAnalyzer()
 
-    # Define streaming platforms to analyze
-    platforms = ['Tubi', 'Netflix', 'Hulu', 'Disney+', 'HBO Max', 'Prime Video']
+    # List of streaming platforms to analyze
+    streaming_platforms = ['Tubi', 'Netflix', 'Hulu', 'Disney+', 'HBO Max', 'Prime Video']
 
-    # Function to collect posts about a specific platform
-    def collect_posts(platform, limit=100):
-        posts = []
+    # Function to collect posts about streaming platforms
+    def collect_posts(platform_name, limit=100):
+        posts_data = []
         
-        # Search in relevant subreddits
-        subreddits = ['cordcutters', 'television', 'movies', 'streaming']
+        # Subreddits where people talk about streaming
+        subreddit_list = ['cordcutters', 'television', 'movies', 'streaming']
         
-        for subreddit in subreddits:
+        for sub_name in subreddit_list:
             try:
-                # Search for posts containing the platform name
-                search_results = reddit.subreddit(subreddit).search(
-                    f'{platform} streaming',
+                # Search for posts mentioning the platform
+                search_results = reddit_client.subreddit(sub_name).search(
+                    f'{platform_name} streaming',
                     limit=limit,
-                    time_filter='month'  # Get posts from the last month
+                    time_filter='month'  # last month's posts
                 )
                 
                 for post in search_results:
-                    posts.append({
-                        'platform': platform,
+                    posts_data.append({
+                        'platform': platform_name,
                         'title': post.title,
                         'text': post.selftext,
                         'score': post.score,
                         'created_utc': datetime.fromtimestamp(post.created_utc),
-                        'subreddit': subreddit
+                        'subreddit': sub_name
                     })
             except Exception as e:
-                print(f"Error collecting posts for {platform} in r/{subreddit}: {str(e)}")
+                print(f"Error collecting posts for {platform_name} in r/{sub_name}: {str(e)}")
         
-        return posts
+        return posts_data
 
-    # Function to clean text
-    def clean_text(text):
-        if not isinstance(text, str):
+    # Clean up text data
+    def clean_text(input_text):
+        if not isinstance(input_text, str):
             return ""
         
-        # Convert to lowercase
-        text = text.lower()
+        # Make it lowercase
+        text = input_text.lower()
         
-        # Remove URLs
+        # Get rid of URLs - they don't help with sentiment
         text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
         
         # Remove special characters and numbers
         text = re.sub(r'[^\w\s]', '', text)
         
-        # Remove extra whitespace
+        # Clean up whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         
         return text
 
-    # Function to get sentiment scores
-    def get_sentiment(text):
-        scores = sia.polarity_scores(text)
-        return scores['compound']  # Using compound score for overall sentiment
+    # Get sentiment score from text
+    def get_sentiment(text_input):
+        sentiment_scores = sentiment_analyzer.polarity_scores(text_input)
+        return sentiment_scores['compound']  # compound score works best
 
-    # Function to categorize sentiment
-    def categorize_sentiment(score):
-        if score >= 0.05:
+    # Convert sentiment score to category
+    def categorize_sentiment(sentiment_score):
+        if sentiment_score >= 0.05:
             return 'Positive'
-        elif score <= -0.05:
+        elif sentiment_score <= -0.05:
             return 'Negative'
         else:
             return 'Neutral'
 
     print("Collecting Reddit posts...")
-    # Collect posts for all platforms
-    all_posts = []
-    for platform in platforms:
+    # Get posts for all platforms
+    all_posts_data = []
+    for platform in streaming_platforms:
         print(f"Collecting posts for {platform}...")
         platform_posts = collect_posts(platform)
-        all_posts.extend(platform_posts)
+        all_posts_data.extend(platform_posts)
         print(f"Collected {len(platform_posts)} posts for {platform}")
 
-    # Convert to DataFrame
-    df = pd.DataFrame(all_posts)
-    print(f"\nTotal posts collected: {len(df)}")
+    # Convert to pandas DataFrame
+    posts_df = pd.DataFrame(all_posts_data)
+    print(f"\nTotal posts collected: {len(posts_df)}")
 
-    # Clean and preprocess text
+    # Clean and process the text data
     print("\nCleaning and preprocessing text...")
-    df['clean_title'] = df['title'].apply(clean_text)
-    df['clean_text'] = df['text'].apply(clean_text)
-    df['combined_text'] = df['clean_title'] + ' ' + df['clean_text']
+    posts_df['clean_title'] = posts_df['title'].apply(clean_text)
+    posts_df['clean_text'] = posts_df['text'].apply(clean_text)
+    posts_df['combined_text'] = posts_df['clean_title'] + ' ' + posts_df['clean_text']
 
-    # Perform sentiment analysis
+    # Run sentiment analysis
     print("\nPerforming sentiment analysis...")
-    df['sentiment_score'] = df['combined_text'].apply(get_sentiment)
-    df['sentiment'] = df['sentiment_score'].apply(categorize_sentiment)
+    posts_df['sentiment_score'] = posts_df['combined_text'].apply(get_sentiment)
+    posts_df['sentiment'] = posts_df['sentiment_score'].apply(categorize_sentiment)
 
-    # Add date-based features
-    df['date'] = df['created_utc'].dt.date
-    df['week'] = df['created_utc'].dt.isocalendar().week
+    # Add some date-based columns
+    posts_df['date'] = posts_df['created_utc'].dt.date
+    posts_df['week'] = posts_df['created_utc'].dt.isocalendar().week
 
-    # Display sentiment distribution
+    # Show sentiment breakdown
     print("\nSentiment Distribution:")
-    print(df['sentiment'].value_counts(normalize=True).round(2))
+    print(posts_df['sentiment'].value_counts(normalize=True).round(2))
 
-    # Create visualizations
+    # Create some visualizations
     print("\nCreating visualizations...")
     
-    # 1. Overall sentiment distribution by platform
+    # 1. Sentiment distribution by platform
     plt.figure(figsize=(12, 6))
-    sentiment_by_platform = pd.crosstab(df['platform'], df['sentiment'], normalize='index')
+    sentiment_by_platform = pd.crosstab(posts_df['platform'], posts_df['sentiment'], normalize='index')
     sentiment_by_platform.plot(kind='bar', stacked=True)
     plt.title('Sentiment Distribution by Streaming Platform')
     plt.xlabel('Platform')
@@ -165,9 +165,9 @@ def main():
     plt.savefig('sentiment_by_platform.png')
     plt.close()
 
-    # 2. Sentiment scores distribution
+    # 2. Box plot of sentiment scores
     plt.figure(figsize=(10, 6))
-    sns.boxplot(x='platform', y='sentiment_score', data=df)
+    sns.boxplot(x='platform', y='sentiment_score', data=posts_df)
     plt.title('Sentiment Score Distribution by Platform')
     plt.xlabel('Platform')
     plt.ylabel('Sentiment Score')
@@ -179,13 +179,13 @@ def main():
     # 3. Sentiment trends over time
     plt.figure(figsize=(15, 8))
     
-    # Calculate daily average sentiment for each platform
-    daily_sentiment = df.groupby(['date', 'platform'])['sentiment_score'].mean().unstack()
+    # Calculate daily averages for each platform
+    daily_sentiment_data = posts_df.groupby(['date', 'platform'])['sentiment_score'].mean().unstack()
     
-    # Plot sentiment trends
-    for platform in platforms:
-        if platform in daily_sentiment.columns:
-            plt.plot(daily_sentiment.index, daily_sentiment[platform], label=platform, marker='o')
+    # Plot the trends
+    for platform in streaming_platforms:
+        if platform in daily_sentiment_data.columns:
+            plt.plot(daily_sentiment_data.index, daily_sentiment_data[platform], label=platform, marker='o')
     
     plt.title('Sentiment Trends Over Time by Platform')
     plt.xlabel('Date')
@@ -196,10 +196,10 @@ def main():
     plt.savefig('sentiment_trends.png', bbox_inches='tight')
     plt.close()
 
-    # 4. Weekly sentiment heatmap
+    # 4. Weekly sentiment heatmap - this one was a bit tricky
     plt.figure(figsize=(12, 8))
-    weekly_sentiment = df.groupby(['week', 'platform'])['sentiment_score'].mean().unstack()
-    sns.heatmap(weekly_sentiment, cmap='RdYlGn', center=0, annot=True, fmt='.2f')
+    weekly_sentiment_data = posts_df.groupby(['week', 'platform'])['sentiment_score'].mean().unstack()
+    sns.heatmap(weekly_sentiment_data, cmap='RdYlGn', center=0, annot=True, fmt='.2f')
     plt.title('Weekly Sentiment Heatmap by Platform')
     plt.xlabel('Platform')
     plt.ylabel('Week Number')

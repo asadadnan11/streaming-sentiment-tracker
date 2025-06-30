@@ -13,139 +13,145 @@ import nltk
 from dateutil.relativedelta import relativedelta
 import random
 
-# Download required NLTK data
+# Download required NLTK data - had to figure this out the hard way
 @st.cache_resource
 def download_nltk_data():
     nltk.download('vader_lexicon')
     nltk.download('stopwords')
     nltk.download('punkt')
 
-# Initialize NLTK
+# Initialize NLTK stuff
 download_nltk_data()
 
-# Set visualization style
+# Set up the plots to look decent
 sns.set_theme(style="whitegrid")
 plt.rcParams['figure.figsize'] = [12, 6]
-plt.rcParams['figure.dpi'] = 100
+plt.rcParams['figure.dpi'] = 100  # makes it look crisp
 
-# Initialize Reddit API client
+# Reddit API setup - these are my actual credentials
 @st.cache_resource
 def init_reddit():
-    return praw.Reddit(
+    reddit_client = praw.Reddit(
         client_id='YOsFiClXBVfQGPNF8w2M6g',
         client_secret='7xm7tx0UkFWr-dUOGZM6j8bQBpP-Ow',
         user_agent='script:StreamingSentiment:v1.0',
         username='asadadnan_11',
         password='Eternity.9081'
     )
+    return reddit_client
 
-# Function to collect posts about a specific topic
+# This function does the heavy lifting for collecting posts
 def collect_posts(reddit, topic, limit=100, analysis_type='streaming'):
-    posts = []
+    posts_list = []
     
+    # Different subreddits for different analysis types
     if analysis_type == 'streaming':
-        subreddits = [
+        subreddits_to_search = [
             'television', 'movies', 'streaming',
             'netflix', 'hulu', 'cordcutters',
             'PrimeVideo', 'BestofStreamingVideo'
         ]
-        search_query = topic
+        search_term = topic
     elif analysis_type == 'director':
-        subreddits = [
+        subreddits_to_search = [
             'movies', 'TrueFilm', 'criterion',
             'MovieSuggestions', 'flicks', 'classicfilms',
             'FilmDiscussion'
         ]
         # For directors, search both with and without "director" keyword
-        search_query = f'"{topic}"'  # Exact match search
-    else:  # country
-        subreddits = [
+        search_term = f'"{topic}"'  # exact match works better
+    else:  # country analysis
+        subreddits_to_search = [
             'movies', 'TrueFilm', 'criterion',
             'MovieSuggestions', 'flicks', 'ForeignMovies',
             'classicfilms', 'FilmDiscussion'
         ]
-        search_query = f'{topic} film'
+        search_term = f'{topic} film'
     
-    # Calculate start date (6 months ago)
+    # Get posts from last 6 months
     end_date = datetime.now()
     start_date = end_date - relativedelta(months=6)
     
-    total_attempts = len(subreddits)
+    total_attempts = len(subreddits_to_search)
     successful_attempts = 0
-    total_posts = 0  # Track total posts collected
+    total_posts_collected = 0  # keep track of how many we actually got
     
-    for subreddit in subreddits:
-        if total_posts >= limit:  # Stop if we've reached the limit
+    for subreddit_name in subreddits_to_search:
+        if total_posts_collected >= limit:  # don't go over the limit
             break
             
         try:
-            # First verify the subreddit exists and is accessible
-            sub = reddit.subreddit(subreddit)
+            # Check if subreddit exists first
+            sub = reddit.subreddit(subreddit_name)
             try:
-                sub.created_utc
+                sub.created_utc  # this will fail if subreddit doesn't exist
             except Exception:
                 continue
                 
             search_results = list(sub.search(
-                search_query,
-                limit=limit,  # Reduced from limit*2 to just limit
+                search_term,
+                limit=limit,  # used to be limit*2 but that was getting too many
                 time_filter='year'
             ))
             
-            # Shuffle the results to get a random sample from each subreddit
+            # shuffle to get random sample
             random.shuffle(search_results)
             
             post_count = 0
             for post in search_results:
-                if total_posts >= limit:  # Check global limit
+                if total_posts_collected >= limit:  # double check the limit
                     break
                     
                 post_date = datetime.fromtimestamp(post.created_utc)
                 if start_date <= post_date <= end_date:
-                    posts.append({
+                    posts_list.append({
                         'topic': topic,
                         'title': post.title,
                         'text': post.selftext,
                         'score': post.score,
                         'created_utc': post_date,
-                        'subreddit': subreddit,
+                        'subreddit': subreddit_name,
                         'analysis_type': analysis_type
                     })
                     post_count += 1
-                    total_posts += 1
+                    total_posts_collected += 1
             
             if post_count > 0:
                 successful_attempts += 1
                 
         except Exception as e:
+            # just skip if there's an error
             continue
     
     if successful_attempts == 0:
         st.warning(f"No data found for {topic}. Tried {total_attempts} subreddits but all failed.")
     else:
-        st.success(f"Successfully collected {len(posts)} posts for {topic} from {successful_attempts} subreddits.")
+        st.success(f"Successfully collected {len(posts_list)} posts for {topic} from {successful_attempts} subreddits.")
     
-    # Ensure we don't return more than the limit
-    return posts[:limit]
+    # make sure we don't return more than requested
+    return posts_list[:limit]
 
-# Function to clean text
+# Clean up the text data
 def clean_text(text):
     if not isinstance(text, str):
         return ""
     text = text.lower()
+    # remove URLs - they're not useful for sentiment
     text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
+    # remove punctuation and special chars
     text = re.sub(r'[^\w\s]', '', text)
+    # clean up extra whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-# Function to get sentiment scores
+# Get sentiment score using VADER
 @st.cache_data
 def get_sentiment(text):
-    sia = SentimentIntensityAnalyzer()
-    scores = sia.polarity_scores(text)
-    return scores['compound']
+    analyzer = SentimentIntensityAnalyzer()
+    scores = analyzer.polarity_scores(text)
+    return scores['compound']  # compound score is the most useful
 
-# Function to categorize sentiment
+# Convert numeric score to category
 def categorize_sentiment(score):
     if score >= 0.05:
         return 'Positive'
@@ -154,7 +160,7 @@ def categorize_sentiment(score):
     else:
         return 'Neutral'
 
-# Function to create sentiment distribution plot
+# Create the sentiment distribution chart
 def plot_sentiment_distribution(df, analysis_type):
     fig, ax = plt.subplots(figsize=(12, 6))
     sentiment_by_topic = pd.crosstab(df['topic'], df['sentiment'], normalize='index')
@@ -167,7 +173,7 @@ def plot_sentiment_distribution(df, analysis_type):
     plt.tight_layout()
     return fig
 
-# Function to create sentiment scores plot
+# Box plot for sentiment scores
 def plot_sentiment_scores(df, analysis_type):
     fig, ax = plt.subplots(figsize=(10, 6))
     sns.boxplot(x='topic', y='sentiment_score', data=df, ax=ax)
@@ -178,12 +184,12 @@ def plot_sentiment_scores(df, analysis_type):
     plt.tight_layout()
     return fig
 
-# Function to create monthly sentiment trends plot
+# Monthly trends over time
 def plot_monthly_trends(df, topics, analysis_type):
-    # Convert datetime to month-year format
+    # Convert to monthly periods
     df['month'] = df['created_utc'].dt.to_period('M')
     
-    # Calculate monthly averages
+    # Get monthly averages
     monthly_sentiment = df.groupby(['month', 'topic'])['sentiment_score'].mean().unstack()
     
     fig, ax = plt.subplots(figsize=(15, 8))
@@ -195,7 +201,7 @@ def plot_monthly_trends(df, topics, analysis_type):
                     label=topic, 
                     marker='o')
     
-    # Set x-axis labels to month names
+    # Set month labels on x-axis
     plt.xticks(range(len(monthly_sentiment.index)), 
                [str(x) for x in monthly_sentiment.index], 
                rotation=45)
@@ -208,7 +214,7 @@ def plot_monthly_trends(df, topics, analysis_type):
     plt.tight_layout()
     return fig
 
-# Function to create weekly sentiment heatmap
+# Weekly heatmap - this one was tricky to get right
 def plot_weekly_heatmap(df, analysis_type):
     fig, ax = plt.subplots(figsize=(12, 8))
     weekly_sentiment = df.groupby(['week', 'topic'])['sentiment_score'].mean().unstack()
@@ -219,34 +225,35 @@ def plot_weekly_heatmap(df, analysis_type):
     plt.tight_layout()
     return fig
 
-# Main Streamlit app
+# Main app function
 def main():
     st.title('Cinema Analysis')
     st.write('Analyzing Reddit sentiment about streaming platforms, directors, and international cinema')
 
-    # Sidebar controls
+    # Sidebar for controls
     st.sidebar.header('Analysis Controls')
     
-    # Analysis type selection
+    # Choose what type of analysis to run
     analysis_type = st.sidebar.radio(
         'Select Analysis Type',
         ['Streaming Platforms', 'Directors', 'International Cinema']
     )
     
+    # Different options based on analysis type
     if analysis_type == 'Streaming Platforms':
-        platforms = [
+        platform_options = [
             'Netflix', 'Hulu', 'Disney+', 'HBO Max', 'Prime Video',
             'Apple TV+', 'Paramount+', 'Peacock', 'Tubi', 'Criterion Channel',
             'MUBI', 'Shudder', 'Crackle', 'Pluto TV', 'YouTube Premium'
         ]
         selected_topics = st.sidebar.multiselect(
             'Select Platforms to Analyze',
-            platforms,
+            platform_options,
             default=['Netflix', 'Hulu', 'Disney+']
         )
         display_type = "Platform"
     elif analysis_type == 'Directors':
-        directors = [
+        director_list = [
             'Bernardo Bertolucci', 'Martin Scorsese', 'Satyajit Ray', 'Jean-Luc Godard',
             'Andrei Tarkovsky', 'Wim Wenders', 'Denis Villeneuve', 'Abbas Kiarostami',
             'Majid Majidi', 'Terrence Malick', 'Greta Gerwig', 'Christopher Nolan',
@@ -257,21 +264,21 @@ def main():
             'Wes Anderson', 'Guillermo del Toro'
         ]
         
-        # Custom director input with better validation
-        custom_director = st.sidebar.text_input('Or enter a custom director name:').strip()
-        if custom_director and custom_director not in directors and len(custom_director) > 2:
-            # Add custom director to the list for selection
-            directors = sorted(directors + [custom_director])
-            st.sidebar.success(f"Added {custom_director} to the list!")
+        # Let users add custom directors
+        custom_director_input = st.sidebar.text_input('Or enter a custom director name:').strip()
+        if custom_director_input and custom_director_input not in director_list and len(custom_director_input) > 2:
+            # Add to the list
+            director_list = sorted(director_list + [custom_director_input])
+            st.sidebar.success(f"Added {custom_director_input} to the list!")
         
         selected_topics = st.sidebar.multiselect(
             'Select Directors to Analyze',
-            directors,
+            director_list,
             default=['Martin Scorsese', 'Christopher Nolan', 'Denis Villeneuve']
         )
         display_type = "Director"
-    else:
-        countries = [
+    else:  # International Cinema
+        country_list = [
             'France', 'Italy', 'Japan', 'South Korea', 'India', 'Iran',
             'Germany', 'Sweden', 'Russia', 'Spain', 'Mexico', 'Brazil',
             'China', 'Hong Kong', 'Taiwan', 'Thailand', 'Turkey', 'Egypt',
@@ -282,21 +289,21 @@ def main():
             'South Africa', 'Israel', 'Lebanon'
         ]
         
-        # Custom country input with better validation
-        custom_country = st.sidebar.text_input('Or enter a custom country name:').strip()
-        if custom_country and custom_country not in countries and len(custom_country) > 2:
-            # Add custom country to the list for selection
-            countries = sorted(countries + [custom_country])
-            st.sidebar.success(f"Added {custom_country} to the list!")
+        # Custom country input
+        custom_country_input = st.sidebar.text_input('Or enter a custom country name:').strip()
+        if custom_country_input and custom_country_input not in country_list and len(custom_country_input) > 2:
+            # Add to list
+            country_list = sorted(country_list + [custom_country_input])
+            st.sidebar.success(f"Added {custom_country_input} to the list!")
         
         selected_topics = st.sidebar.multiselect(
             'Select Countries to Analyze',
-            countries,
+            country_list,
             default=['France', 'Japan', 'South Korea']
         )
         display_type = "Country"
 
-    # Posts per topic
+    # How many posts to analyze per topic
     posts_limit = st.sidebar.slider(
         'Posts per Topic',
         min_value=10,
@@ -305,13 +312,13 @@ def main():
         step=10
     )
 
-    # Initialize Reddit client
+    # Try to connect to Reddit
     try:
         reddit = init_reddit()
         
         if st.button('Run Analysis'):
             with st.spinner('Collecting and analyzing Reddit posts...'):
-                # Collect and process data
+                # Collect data for all selected topics
                 all_posts = []
                 progress_bar = st.progress(0)
                 
@@ -328,11 +335,11 @@ def main():
                     progress = (i + 1) / len(selected_topics)
                     progress_bar.progress(progress)
                 
-                # Create DataFrame
+                # Create DataFrame from collected posts
                 df = pd.DataFrame(all_posts)
                 
                 if len(df) > 0:
-                    # Process data
+                    # Process the data
                     df['clean_title'] = df['title'].apply(clean_text)
                     df['clean_text'] = df['text'].apply(clean_text)
                     df['combined_text'] = df['clean_title'] + ' ' + df['clean_text']
@@ -341,7 +348,7 @@ def main():
                     df['date'] = df['created_utc'].dt.date
                     df['week'] = df['created_utc'].dt.isocalendar().week
 
-                    # Display results in tabs
+                    # Show results in different tabs
                     tab1, tab2, tab3, tab4, tab5 = st.tabs([
                         "Overview", 
                         "Sentiment Distribution", 
@@ -354,7 +361,7 @@ def main():
                         st.header("Analysis Overview")
                         st.write(f"Total posts analyzed: {len(df)}")
                         
-                        # Display sentiment distribution
+                        # Show overall sentiment breakdown
                         st.subheader("Overall Sentiment Distribution")
                         sentiment_counts = df['sentiment'].value_counts(normalize=True).round(3)
                         col1, col2, col3 = st.columns(3)
@@ -362,7 +369,7 @@ def main():
                         col2.metric("Neutral", f"{sentiment_counts.get('Neutral', 0):.1%}")
                         col3.metric("Negative", f"{sentiment_counts.get('Negative', 0):.1%}")
 
-                        # Display posts per topic
+                        # Posts per topic chart
                         st.subheader(f"Posts per {display_type}")
                         topic_counts = df['topic'].value_counts()
                         st.bar_chart(topic_counts)
@@ -389,7 +396,7 @@ def main():
                         else:
                             st.pyplot(plot_weekly_heatmap(df, display_type))
 
-                    # Show raw data option
+                    # Option to show raw data
                     if st.checkbox('Show Raw Data'):
                         st.subheader('Raw Data')
                         st.dataframe(df[['topic', 'title', 'sentiment', 'sentiment_score', 'created_utc', 'subreddit']])
