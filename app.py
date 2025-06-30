@@ -18,7 +18,7 @@ import random
 def download_nltk_data():
     nltk.download('vader_lexicon')
     nltk.download('stopwords')
-    nltk.download('punkt')
+    nltk.download('punkt')  # TODO: might not need all of these but better safe than sorry
 
 # Initialize NLTK stuff
 download_nltk_data()
@@ -90,8 +90,8 @@ def collect_posts(reddit, topic, limit=100, analysis_type='streaming'):
                 
             search_results = list(sub.search(
                 search_term,
-                limit=limit,  # used to be limit*2 but that was getting too many
-                time_filter='year'
+                limit=limit,  # used to be limit*2 but that was getting too many posts
+                time_filter='year'  # tried 'month' first but not enough data
             ))
             
             # shuffle to get random sample
@@ -144,12 +144,12 @@ def clean_text(text):
     text = re.sub(r'\s+', ' ', text).strip()
     return text
 
-# Get sentiment score using VADER
-@st.cache_data
-def get_sentiment(text):
-    analyzer = SentimentIntensityAnalyzer()
-    scores = analyzer.polarity_scores(text)
-    return scores['compound']  # compound score is the most useful
+    # Get sentiment score using VADER
+    @st.cache_data
+    def get_sentiment(text):
+        analyzer = SentimentIntensityAnalyzer()
+        scores = analyzer.polarity_scores(text)
+        return scores['compound']  # compound score worked best after testing different options
 
 # Convert numeric score to category
 def categorize_sentiment(score):

@@ -12,8 +12,8 @@ import nltk
 import sys
 
 # Download NLTK stuff - this took me forever to figure out
-nltk.download('vader_lexicon')
-nltk.download('stopwords')
+nltk.download('vader_lexicon')  # for sentiment analysis
+nltk.download('stopwords')  # probably don't need this one but just in case
 nltk.download('punkt')
 
 # Make the plots look decent
@@ -67,7 +67,7 @@ def main():
                 search_results = reddit_client.subreddit(sub_name).search(
                     f'{platform_name} streaming',
                     limit=limit,
-                    time_filter='month'  # last month's posts
+                    time_filter='month'  # last month's posts - tried 'week' but too few results
                 )
                 
                 for post in search_results:
