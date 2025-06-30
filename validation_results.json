@@ -1,0 +1,52 @@
+{
+  "accuracy_metrics": {
+    "overall_accuracy": 89.62264150943396,
+    "correct_predictions": 95,
+    "total_predictions": 106,
+    "class_metrics": {
+      "Positive": {
+        "precision": 82.92682926829268,
+        "recall": 100.0,
+        "f1_score": 90.66666666666667
+      },
+      "Negative": {
+        "precision": 88.88888888888889,
+        "recall": 100.0,
+        "f1_score": 94.11764705882352
+      },
+      "Neutral": {
+        "precision": 100.0,
+        "recall": 72.5,
+        "f1_score": 84.05797101449275
+      }
+    },
+    "validation_size": 106
+  },
+  "temporal_analysis": {
+    "pre_policy_avg": 0.19591630885701825,
+    "post_policy_avg": 0.1591176533271223,
+    "percentage_change": 18.782844442395035,
+    "p_value": 0.10861454224914678,
+    "significant": false,
+    "sample_size": 365
+  },
+  "platform_analysis": {
+    "paid_avg": 0.1076339284757726,
+    "free_avg": 0.192208227582043,
+    "improvement_percentage": 78.57587315072988,
+    "p_value": 0.00018748434001985775,
+    "significant": true,
+    "paid_sample_size": 500,
+    "free_sample_size": 300
+  },
+  "international_analysis": {
+    "domestic_avg": 0.16342254588726338,
+    "international_avg": 0.21554683812595493,
+    "engagement_boost": 31.895410731545798,
+    "p_value": 0.016437526972939234,
+    "significant": true,
+    "domestic_sample_size": 600,
+    "international_sample_size": 400
+  },
+  "validation_timestamp": "2025-06-29T21:11:07.081571"
+}
